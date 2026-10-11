@@ -1,0 +1,29 @@
+{
+  "name": "school-repository-hub",
+  "version": "1.0.0",
+  "description": "Portal berbasis frontend untuk repositori perangkat lunak (software) yang dihosting oleh sekolah dan penyimpanan berkas bersama. Dibangun dengan React + Tailwind CSS. Milestone awal menggunakan data mock (sampel) dan tidak mengubah penyiapan TrueNAS yang sudah ada.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "lucide-react": "^1.55.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  }
+}
