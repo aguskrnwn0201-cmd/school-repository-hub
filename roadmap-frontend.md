@@ -9,6 +9,8 @@ connecting it to the existing server.
 
 - Phase 1 is complete: React + TypeScript + Vite, Tailwind CSS, routing, shared navigation, and local sample data are in place.
 - Phases 2–4 are in progress: the dashboard, searchable/category-filtered software catalog, and folder browser with breadcrumbs and list/grid views are available. Global search, software details, platform filters, sorting, and live integration remain open.
+- Access control prototype is complete for the frontend-only scope: login page, protected routes, Teknisi/Guest roles, and a technician-only user-management page with add/edit/delete flows are implemented using local storage for the prototype.
+- Frontend prototype status: complete for this scope. The project is not production-ready without a real backend or authentication service, but the UI and interaction flow are finished for the current frontend milestone.
 
 ## Phase 0 --- Confirm Constraints
 
@@ -69,6 +71,14 @@ and error states. - Keep destructive actions out of scope.
 **Exit criteria** - Folder navigation and breadcrumbs work. - Switching
 views does not lose the current folder. - UI does not claim to mutate
 real files.
+
+## Phase 4.5 --- Authentication and Access Control
+
+**Tasks** - Add login screen and protected route guards. - Create demo users with only two roles: Teknisi and Guest. - Add a technician-only user-management page for create, edit, deactivate, and delete operations in the prototype. - Store prototype session state locally and keep the flow isolated from backend services.
+
+**Deliverables** - Authenticated portal experience for demo use. - Role-based access visibility in the sidebar and management UI. - Guest read-only mode and technician operational dashboard.
+
+**Exit criteria** - Valid credentials grant access, invalid credentials are rejected, and inactive users cannot sign in. - User management is available only to the Teknisi role. - All auth logic remains clearly marked as prototype data and is ready to be replaced by a real backend.
 
 ## Phase 5 --- Responsive and Accessibility Pass
 

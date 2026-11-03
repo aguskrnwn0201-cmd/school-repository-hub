@@ -1,97 +1,99 @@
 # School Repository Hub
 
-Portal berbasis frontend untuk repositori perangkat lunak (software) yang dihosting oleh sekolah dan penyimpanan berkas bersama. Dibangun dengan React + Tailwind CSS. Milestone awal menggunakan data mock (sampel) dan tidak mengubah penyiapan TrueNAS yang sudah ada.
+Portal frontend untuk repositori perangkat lunak dan berkas sekolah dengan akses berbasis role. Proyek ini dibangun dengan React, TypeScript, Vite, dan CSS yang sudah diatur untuk tampilan portal sekolah. Semua fitur saat ini masih menggunakan data demo lokal dan tidak terhubung ke backend atau TrueNAS yang sebenarnya.
 
-## Features Planned
+## Fitur yang sudah dibuat
 
--   Dashboard with shortcuts and recent resources
--   Software Center with search, categories, filters, and software
-    details
--   Cloud Storage browser with folder navigation, breadcrumbs, and
-    list/grid views
--   Responsive interface for phones, tablets, and desktops
--   Service layer designed so mock data can later be replaced by a
-    verified API
+- Dashboard dengan ringkasan dan navigasi cepat
+- Katalog software dengan pencarian dan filter kategori
+- Penjelajah berkas dengan breadcrumbs dan tampilan list/grid
+- Login page dengan proteksi route
+- Role-based access control dengan dua role: Teknisi dan Guest
+- Manajemen user untuk role Teknisi (tambah, edit, hapus, status, role)
+- Mode tamu yang dibatasi hanya untuk akses baca-saja
+- Data pengguna dan sesi disimpan di localStorage untuk prototype frontend
 
-## Important Scope Note
+## Role yang tersedia
 
-Proyek ini adalah antarmuka frontend, bukan server penyimpanan. Otentikasi aktual, izin (permissions), pencarian daftar berkas, unggahan, dan operasi berkas harus disediakan oleh layanan pendukung yang ada atau backend yang disetujui secara terpisah. Purwarupa tidak boleh mengklaim bahwa tindakan sampel memodifikasi berkas nyata.
+- Teknisi
+  - dapat login
+  - dapat mengakses dashboard operasional
+  - dapat mengelola user
+- Guest
+  - dapat login
+  - hanya dapat melihat katalog software dan file publik
+  - tidak dapat mengelola user atau fitur administratif
 
-## Recommended Stack
+## Demo akun
 
--   React
--   TypeScript
--   Vite
--   Tailwind CSS
--   Lucide React
--   React Router, if route-based navigation is needed
+```text
+Teknisi:
+  email: teknisi@school.local
+  password: teknisi123
 
-Gunakan instruksi penyiapan resmi untuk versi yang dipilih, terutama Tailwind CSS, karena instalasi dan konfigurasinya bervariasi antar versi utama.
+Guest:
+  email: guest@school.local
+  password: guest123
+```
 
-## Local Development
+## Stack
 
-After the project has been initialized:
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- Lucide React
+- React Router
 
-``` bash
+## Menjalankan project
+
+Install dependency:
+
+```bash
 npm install
+```
+
+Jalankan development server:
+
+```bash
 npm run dev
 ```
 
-Build and preview the production bundle:
+Build production bundle:
 
-``` bash
+```bash
 npm run build
+```
+
+Preview build hasil produksi:
+
+```bash
 npm run preview
 ```
 
-These commands assume the standard Vite scripts are present in
-`package.json`.
+## Struktur utama
 
-## Suggested Structure
-
-``` text
+```text
 src/
-  app/
-  components/
-  pages/
-  data/
-  types/
-  services/
-  hooks/
-  lib/
+  App.tsx
   main.tsx
   index.css
+  data/
+    repository.ts
+    users.ts
 ```
 
-See: - `prd.md` for goals, requirements, data models, and acceptance
-criteria. - `design.md` for visual system, layout, interactions, and
-accessibility. - `skill.md` for implementation conventions and
-integration boundaries. - `roadmap-frontend.md` for phased development
-and exit criteria.
+## Scope penting
 
-## Data and Integration
+Proyek ini adalah frontend prototype. Otentikasi, peran, dan data user saat ini bersifat lokal dan demo. Integrasi backend, sistem login yang aman, serta koneksi ke TrueNAS atau storage nyata harus ditangani di milestone berikutnya dengan backend yang sesuai.
 
-Start with sample data in `src/data/`. Keep data access behind service
-functions in `src/services/`, so the UI does not depend directly on mock
-arrays.
+## Dokumen pendukung
 
-Before connecting live storage, confirm: 1. The current TrueNAS version
-and storage access method. 2. Whether a supported API or safe HTTP
-download URLs already exist. 3. Authentication and authorization
-requirements. 4. CORS and HTTPS behavior. 5. Which directories are
-approved for access through the portal.
+- `prd.md` untuk kebutuhan proyek dan deskripsi fitur
+- `design.md` untuk sistem visual dan layout
+- `skill.md` untuk panduan implementasi
+- `roadmap-frontend.md` untuk roadmap fase frontend
 
-A browser cannot directly browse an SMB/NFS share as if it were an HTTP
-API. Do not place privileged credentials in frontend code or expose the
-TrueNAS admin interface to general users.
+## Status saat ini
 
-## Software Distribution
-
-Only publish installers, APKs, drivers, and ISO files that the school is
-authorized to distribute. Prefer official vendor sources and show
-version, platform, file size, source, and checksum when those values are
-available.
-
-## Status
-
-Fondasi frontend kini tersedia: dashboard, katalog software dengan pencarian/filter kategori, dan penjelajah berkas mock dengan navigasi folder serta tampilan daftar/kisi. Semua konten masih data contoh dan read-only; integrasi server langsung tetap menjadi milestone terpisah.
+Frontend prototype untuk School Repository Hub sudah selesai sesuai scope saat ini: dashboard, software catalog, file browser, login, role-based access, dan manajemen user untuk Teknisi. Semua fitur masih menggunakan data mock dan dirancang agar mudah diganti saat backend atau layanan autentikasi yang nyata sudah siap.
