@@ -4,6 +4,7 @@ export type UserStatus = 'active' | 'inactive'
 export interface AppUser {
   id: string
   fullName: string
+  username: string
   email: string
   password: string
   role: UserRole
@@ -22,6 +23,7 @@ export const defaultUsers: AppUser[] = [
   {
     id: 'user-1',
     fullName: 'Andi Pratama',
+    username: 'teknisi',
     email: 'teknisi@school.local',
     password: 'teknisi123',
     role: 'teknisi',
@@ -31,6 +33,7 @@ export const defaultUsers: AppUser[] = [
   {
     id: 'user-2',
     fullName: 'Sinta Dewi',
+    username: 'guest',
     email: 'guest@school.local',
     password: 'guest123',
     role: 'guest',

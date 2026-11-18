@@ -148,6 +148,8 @@ h1, h2 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: 0; }
 .software-meta strong { color: #526176; font-weight: 700; }
 .download-button { display: flex; height: 34px; align-items: center; justify-content: center; gap: 7px; margin-top: 12px; border: 1px solid #e6eaf0; border-radius: 5px; background: #f8f9fb; color: #919ba9; font-size: 10px; font-weight: 600; }
 .download-button:disabled { cursor: not-allowed; }
+.download-button.active-download { background: #eaf1ff; border-color: #c5d9f7; color: #2563eb; text-decoration: none; cursor: pointer; transition: background .15s, border-color .15s; }
+.download-button.active-download:hover { background: #dbeafe; border-color: #93c5fd; }
 .inline-notice { display: flex; align-items: center; gap: 8px; color: #788698; font-size: 10px; }
 .inline-notice svg { flex: 0 0 auto; color: #669171; }
 .file-toolbar { flex-wrap: wrap; min-height: 47px; padding: 6px 0 12px; border-bottom: 1px solid var(--line); }
@@ -168,6 +170,9 @@ h1, h2 { font-family: Manrope, 'DM Sans', sans-serif; letter-spacing: 0; }
 .file-row:not(:disabled) { cursor: pointer; }
 .file-row:not(:disabled):hover { background: #f8faff; }
 .file-row:disabled { cursor: default; }
+.file-row.is-downloadable { cursor: pointer; text-decoration: none; color: inherit; }
+.file-row.is-downloadable:hover { background: #f0f7ff; }
+.file-row.is-downloadable .file-open-arrow { color: #2864dc; }
 .file-name-cell { display: flex; min-width: 0; align-items: center; gap: 10px; }
 .file-name-cell strong { overflow: hidden; color: #455267; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .file-icon { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; border-radius: 6px; background: #f1f4f9; color: #8290a4; }

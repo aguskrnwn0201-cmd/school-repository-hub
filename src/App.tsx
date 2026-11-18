@@ -29,9 +29,12 @@ import {
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { fileEntries, softwareItems, type FileEntry } from './data/repository'
 import { canManageUsers, defaultUsers, roleLabels, type AppUser, type UserRole, type UserStatus } from './data/users'
+import LoginPage from './pages/LoginPage'
 
 const STORAGE_KEY = 'school-repository-users'
 const SESSION_KEY = 'school-repository-session'
+
+const SCHEMA_VERSION = 2 // naikkan ini setiap kali struktur AppUser berubah
 
 const getStoredUsers = (): AppUser[] => {
   if (typeof window === 'undefined') {
@@ -39,11 +42,24 @@ const getStoredUsers = (): AppUser[] => {
   }
 
   try {
+    // Jika schema berubah, buang data lama dan pakai defaultUsers
+    const storedVersion = Number(window.localStorage.getItem(STORAGE_KEY + '_v') ?? '0')
+    if (storedVersion < SCHEMA_VERSION) {
+      window.localStorage.removeItem(STORAGE_KEY)
+      window.localStorage.removeItem(SESSION_KEY)
+      window.localStorage.setItem(STORAGE_KEY + '_v', String(SCHEMA_VERSION))
+      return defaultUsers
+    }
+
     const stored = window.localStorage.getItem(STORAGE_KEY)
     if (!stored) return defaultUsers
 
     const parsed = JSON.parse(stored) as AppUser[]
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : defaultUsers
+    // Validasi: setiap entry harus punya field username (schema baru)
+    if (!Array.isArray(parsed) || parsed.length === 0 || !parsed[0].username) {
+      return defaultUsers
+    }
+    return parsed
   } catch {
     return defaultUsers
   }
@@ -51,15 +67,18 @@ const getStoredUsers = (): AppUser[] => {
 
 const getStoredSession = (): AppUser | null => {
   if (typeof window === 'undefined') {
-    return null
+    return defaultUsers.find((u) => u.role === 'guest') ?? null
   }
 
   try {
     const stored = window.localStorage.getItem(SESSION_KEY)
-    if (!stored) return null
-    return JSON.parse(stored) as AppUser
+    if (!stored) return defaultUsers.find((u) => u.role === 'guest') ?? null
+    const parsed = JSON.parse(stored) as AppUser
+    // Validasi schema: kalau tidak punya username, session lama — buang
+    if (!parsed?.username) return defaultUsers.find((u) => u.role === 'guest') ?? null
+    return parsed
   } catch {
-    return null
+    return defaultUsers.find((u) => u.role === 'guest') ?? null
   }
 }
 
@@ -73,6 +92,7 @@ const pageDetails: Record<string, { title: string; eyebrow: string }> = {
 
 function App() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [users, setUsers] = useState<AppUser[]>(() => getStoredUsers())
   const [currentUser, setCurrentUser] = useState<AppUser | null>(() => getStoredSession())
   const currentPage = pageDetails[location.pathname] ?? pageDetails['/']
@@ -101,31 +121,38 @@ function App() {
       ]
     : [{ to: '/login', label: 'Login', icon: LockKeyhole, end: true }]
 
-  const handleLogin = (email: string, password: string) => {
-    const matchedUser = users.find((user) => user.email.toLowerCase() === email.toLowerCase() && user.password === password)
+  const handleLogin = async (username: string, password: string) => {
+    const matchedUser = users.find((user) => user.username.toLowerCase() === username.toLowerCase() && user.password === password)
 
     if (!matchedUser) {
-      return { ok: false, message: 'Email atau password tidak valid.' }
+      throw new Error('Username atau kata sandi tidak cocok. Periksa lagi lalu coba masuk.')
     }
 
     if (matchedUser.status !== 'active') {
-      return { ok: false, message: 'Akun ini sedang non-aktif. Hubungi teknisi untuk aktivasi.' }
+      throw new Error('Akun ini sedang non-aktif. Hubungi teknisi untuk aktivasi.')
     }
 
     setCurrentUser(matchedUser)
-    return { ok: true, message: 'Login berhasil.' }
   }
 
   const handleLogout = () => {
-    setCurrentUser(null)
+    // Logout kembali ke mode guest (bukan null) — guest selalu bisa akses tanpa login
+    const guestUser = users.find((u) => u.role === 'guest') ?? null
+    setCurrentUser(guestUser)
   }
 
   const handleSaveUser = (input: Omit<AppUser, 'id'> & { id?: string }) => {
+    const sanitizedUsername = input.username.trim()
     const sanitizedEmail = input.email.trim()
     const sanitizedName = input.fullName.trim()
 
-    if (!sanitizedEmail || !sanitizedName) {
-      return { ok: false, message: 'Nama dan email wajib diisi.' }
+    if (!sanitizedUsername || !sanitizedName) {
+      return { ok: false, message: 'Nama dan username wajib diisi.' }
+    }
+
+    const usernameExists = users.some((user) => user.username.toLowerCase() === sanitizedUsername.toLowerCase() && user.id !== input.id)
+    if (usernameExists) {
+      return { ok: false, message: 'Username sudah dipakai oleh user lain.' }
     }
 
     const emailExists = users.some((user) => user.email.toLowerCase() === sanitizedEmail.toLowerCase() && user.id !== input.id)
@@ -136,6 +163,7 @@ function App() {
     setUsers((prev) => {
       const normalizedInput = {
         ...input,
+        username: sanitizedUsername,
         email: sanitizedEmail,
         fullName: sanitizedName,
         department: input.department.trim() || 'Umum',
@@ -215,9 +243,15 @@ function App() {
             {currentUser ? (
               <>
                 <span className="demo-pill"><span /> {currentUser.role.toUpperCase()}</span>
-                <button type="button" className="logout-button" onClick={handleLogout}>
-                  <LogOut size={14} /> Keluar
-                </button>
+                {currentUser.role === 'guest' ? (
+                  <NavLink to="/login" className="logout-button">
+                    <LockKeyhole size={14} /> Masuk sebagai Teknisi
+                  </NavLink>
+                ) : (
+                  <button type="button" className="logout-button" onClick={handleLogout}>
+                    <LogOut size={14} /> Keluar
+                  </button>
+                )}
               </>
             ) : (
               <span className="demo-pill"><span /> LOGIN DIBUTUHKAN</span>
@@ -226,7 +260,24 @@ function App() {
         </header>
         <main className="main-content">
           <Routes>
-            <Route path="/login" element={currentUser ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />} />
+            <Route
+              path="/login"
+              element={
+                currentUser && currentUser.role !== 'guest' ? (
+                  <Navigate to="/" replace />
+                ) : (
+                  <LoginPage
+                    onLogin={async (username, password) => {
+                      await handleLogin(username, password)
+                      navigate('/')
+                    }}
+                    demoAccounts={[
+                      { label: 'Teknisi', email: 'teknisi', password: 'teknisi123' },
+                    ]}
+                  />
+                )
+              }
+            />
             <Route path="/" element={currentUser ? <DashboardPage currentUser={currentUser} /> : <Navigate to="/login" replace />} />
             <Route path="/software" element={currentUser ? <SoftwarePage /> : <Navigate to="/login" replace />} />
             <Route path="/files" element={currentUser ? <FilesPage /> : <Navigate to="/login" replace />} />
@@ -235,59 +286,6 @@ function App() {
           </Routes>
         </main>
         <footer className="page-footer"><span>School Repository Hub</span><span>Portal akses terkontrol · Data lokal</span></footer>
-      </div>
-    </div>
-  )
-}
-
-function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => { ok: boolean; message: string } }) {
-  const navigate = useNavigate()
-  const [email, setEmail] = useState('teknisi@school.local')
-  const [password, setPassword] = useState('teknisi123')
-  const [error, setError] = useState('')
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const result = onLogin(email, password)
-    if (!result.ok) {
-      setError(result.message)
-      return
-    }
-
-    navigate('/')
-  }
-
-  return (
-    <div className="auth-shell">
-      <div className="auth-card">
-        <div className="auth-header">
-          <span className="section-kicker"><ShieldCheck size={12} /> PORTAL SEKOLAH</span>
-          <h1>Masuk ke Repository Hub</h1>
-        </div>
-
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <label>
-            <span>Email</span>
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="teknisi@school.local" required />
-          </label>
-
-          <label>
-            <span>Password</span>
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Masukan password" required />
-          </label>
-
-          {error && <div className="form-error">{error}</div>}
-
-          <button type="submit" className="primary-button">Masuk</button>
-        </form>
-
-        <div className="auth-footer">
-          <p>Demo akun</p>
-          <ul>
-            <li>teknisi@school.local / teknisi123</li>
-            <li>guest@school.local / guest123</li>
-          </ul>
-        </div>
       </div>
     </div>
   )
@@ -304,6 +302,7 @@ function UserManagementPage({ currentUser, users, onSaveUser, onDeleteUser }: {
   const [form, setForm] = useState({
     id: '',
     fullName: '',
+    username: '',
     email: '',
     password: '',
     role: 'guest' as UserRole,
@@ -315,7 +314,7 @@ function UserManagementPage({ currentUser, users, onSaveUser, onDeleteUser }: {
   const filteredUsers = useMemo(
     () =>
       users.filter((user) => {
-        const text = `${user.fullName} ${user.email} ${user.department} ${roleLabels[user.role]}`.toLowerCase()
+        const text = `${user.fullName} ${user.username} ${user.email} ${user.department} ${roleLabels[user.role]}`.toLowerCase()
         return text.includes(search.toLowerCase())
       }),
     [search, users],
@@ -326,6 +325,7 @@ function UserManagementPage({ currentUser, users, onSaveUser, onDeleteUser }: {
     setForm({
       id: '',
       fullName: '',
+      username: '',
       email: '',
       password: '',
       role: 'guest',
@@ -349,6 +349,7 @@ function UserManagementPage({ currentUser, users, onSaveUser, onDeleteUser }: {
     setForm({
       id: user.id,
       fullName: user.fullName,
+      username: user.username,
       email: user.email,
       password: user.password,
       role: user.role,
@@ -375,8 +376,12 @@ function UserManagementPage({ currentUser, users, onSaveUser, onDeleteUser }: {
                 <input value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} placeholder="Nama lengkap" required />
               </label>
               <label>
+                <span>Username</span>
+                <input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} placeholder="teknisi, guest, dll" required />
+              </label>
+              <label>
                 <span>Email</span>
-                <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="user@school.local" required />
+                <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="user@school.local" />
               </label>
               <label>
                 <span>Password</span>
@@ -433,7 +438,7 @@ function UserManagementPage({ currentUser, users, onSaveUser, onDeleteUser }: {
                   <span className="user-avatar">{user.fullName.charAt(0).toUpperCase()}</span>
                   <div>
                     <strong>{user.fullName}</strong>
-                    <span>{user.email}</span>
+                    <span>@{user.username}</span>
                     <small>{user.department}</small>
                   </div>
                 </div>
@@ -472,9 +477,9 @@ function DashboardPage({ currentUser }: { currentUser: AppUser }) {
     <div className="page-stack dashboard-page">
       <section className="welcome-row">
         <div>
-          <div className="section-kicker"><Sparkles size={14} /> {isTechnician ? 'PANEL TEKNISI' : 'PORTAL TAMU'}</div>
-          <h1>{isTechnician ? 'Dashboard operasional' : 'Akses terbatas'}<br /><span>{isTechnician ? 'untuk teknisi sekolah.' : 'untuk tamu dan pengguna umum.'}</span></h1>
-          <p className="welcome-copy">{isTechnician ? 'Pantau sistem, kelola pengguna, dan akses perangkat yang dibutuhkan untuk operasional sekolah.' : 'Lihat katalog software dan berkas publik yang tersedia untuk kebutuhan belajar dan akses umum.'}</p>
+          <div className="section-kicker"><Sparkles size={14} /> {isTechnician ? 'PANEL TEKNISI' : 'PORTAL REPOSITORI'}</div>
+          <h1>{isTechnician ? 'Dashboard operasional' : 'Selamat datang'}<br /><span>{isTechnician ? 'untuk teknisi sekolah.' : 'di School Repository Hub.'}</span></h1>
+          <p className="welcome-copy">{isTechnician ? 'Pantau sistem, kelola pengguna, dan akses perangkat yang dibutuhkan untuk operasional sekolah.' : 'Jelajahi dan unduh software serta berkas yang tersedia untuk kebutuhan belajar.'}</p>
           <div className={`role-banner ${isTechnician ? 'technician' : 'guest'}`}>
             <ShieldCheck size={14} />
             <span>Role aktif: {roleLabels[currentUser.role]}</span>
@@ -483,15 +488,6 @@ function DashboardPage({ currentUser }: { currentUser: AppUser }) {
         <div className="welcome-stamp"><span>{isTechnician ? 'T' : 'G'}</span><small>{isTechnician ? 'TEKNISI' : 'GUEST'}</small></div>
       </section>
 
-      {!isTechnician && (
-        <div className="guest-limited-panel">
-          <div className="guest-limited-icon"><ShieldCheck size={16} /></div>
-          <div>
-            <strong>Mode tamu aktif</strong>
-            <span>Anda hanya dapat melihat katalog software dan file publik dalam mode baca-saja.</span>
-          </div>
-        </div>
-      )}
 
       {isTechnician && (
         <section className="tech-metrics" aria-label="Statistik teknisi">
@@ -521,12 +517,12 @@ function DashboardPage({ currentUser }: { currentUser: AppUser }) {
       <section className="workspace-grid" aria-label="Area repositori">
         <NavLink to="/software" className="workspace-card software-card">
           <div className="workspace-card-top"><span className="workspace-icon"><MonitorDown size={21} /></span><span className="card-index">01 / KATALOG</span></div>
-          <div><h2>Pusat Software</h2><p>{isTechnician ? 'Aplikasi dan utilitas yang dikurasi untuk kegiatan belajar.' : 'Katalog software yang dapat dilihat oleh pengguna umum dalam mode terbatas.'}</p></div>
+          <div><h2>Pusat Software</h2><p>{isTechnician ? 'Aplikasi dan utilitas yang dikurasi untuk kegiatan belajar.' : 'Cari dan unduh software yang tersedia untuk kebutuhan sekolah.'}</p></div>
           <div className="workspace-card-bottom"><span>Jelajahi katalog <ArrowRight size={16} /></span><span className="card-total">04 <small>item contoh</small></span></div>
         </NavLink>
         <NavLink to="/files" className="workspace-card files-card">
           <div className="workspace-card-top"><span className="workspace-icon"><Cloud size={21} /></span><span className="card-index">02 / BERKAS</span></div>
-          <div><h2>Penyimpanan Cloud</h2><p>{isTechnician ? 'Materi, panduan, dan folder bersama dalam satu penjelajah.' : 'Berkas publik yang disediakan untuk akses tamu secara terbatas.'}</p></div>
+          <div><h2>Penyimpanan Cloud</h2><p>{isTechnician ? 'Materi, panduan, dan folder bersama dalam satu penjelajah.' : 'Jelajahi dan unduh berkas yang tersedia di repositori.'}</p></div>
           <div className="workspace-card-bottom"><span>Buka penyimpanan <ArrowRight size={16} /></span><span className="card-total">10 <small>item contoh</small></span></div>
         </NavLink>
       </section>
@@ -547,10 +543,17 @@ function DashboardPage({ currentUser }: { currentUser: AppUser }) {
             </div>
           </div>
         ) : (
-          <div className="recent-section guest-section">
-            <div className="section-heading"><div><span className="section-kicker">AKSES TAMU</span><h2>Mode lihat saja</h2></div></div>
-            <div className="guest-summary">
-              <p>Anda dapat menelusuri software dan file yang dipublikasikan untuk umum, tetapi tidak memiliki akses untuk mengelola pengguna atau mengubah konfigurasi.</p>
+          <div className="recent-section">
+            <div className="section-heading"><div><span className="section-kicker">TERSEDIA UNTUK DIUNDUH</span><h2>Software terbaru</h2></div><NavLink to="/software" className="text-link">Lihat semua <ArrowRight size={15} /></NavLink></div>
+            <div className="recent-list">
+              {softwareItems.slice(0, 3).map((item, index) => (
+                <div className="recent-row" key={item.id}>
+                  <span className={`software-monogram ${item.accent}`}>{item.initials}</span>
+                  <div className="recent-main"><strong>{item.name}</strong><span>{item.category} <i /> {item.version}</span></div>
+                  <span className="recent-date">{item.updatedAt}</span>
+                  <span className="row-number">0{index + 1}</span>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -558,9 +561,9 @@ function DashboardPage({ currentUser }: { currentUser: AppUser }) {
         <aside className="note-panel">
           <div className="note-icon"><BookOpen size={18} /></div>
           <span className="section-kicker">CATATAN PORTAL</span>
-          <h2>{isTechnician ? 'Data contoh, bukan server langsung.' : 'Hak akses terbatas untuk tamu.'}</h2>
-          <p>{isTechnician ? 'Daftar ini hanya pratinjau lokal. Tautan unduhan dan koneksi penyimpanan akan diaktifkan setelah sumber resmi dikonfirmasi.' : 'Semua konten yang tersedia untuk tamu hanya bersifat publik dan tidak dapat diubah dari portal ini.'}</p>
-          <div className="note-rule"><Check size={14} /><span>{isTechnician ? 'Mode baca-saja aktif' : 'Mode tamu aktif'}</span></div>
+          <h2>{isTechnician ? 'Data contoh, bukan server langsung.' : 'Unduh langsung dari sumber resmi.'}</h2>
+          <p>{isTechnician ? 'Daftar ini hanya pratinjau lokal. Tautan unduhan dan koneksi penyimpanan akan diaktifkan setelah sumber resmi dikonfirmasi.' : 'Semua tautan unduhan mengarah ke sumber resmi masing-masing perangkat lunak. Verifikasi lisensi sebelum digunakan.'}</p>
+          <div className="note-rule"><Check size={14} /><span>{isTechnician ? 'Mode baca-saja aktif' : 'Unduhan tersedia'}</span></div>
         </aside>
       </section>
     </div>
@@ -590,7 +593,21 @@ function SoftwarePage() {
           <div className="software-title-row"><h2>{item.name}</h2><span className="category-tag">{item.category}</span></div>
           <p>{item.description}</p>
           <div className="software-meta"><span>Versi <strong>{item.version}</strong></span><span>{item.size}</span><span>{item.updatedAt}</span></div>
-          <button className="download-button" type="button" disabled title="Tautan unduhan belum dikonfigurasi"><ArrowDownToLine size={16} /> Tautan belum tersedia</button>
+          {item.downloadUrl ? (
+            <a
+              href={item.downloadUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="download-button active-download"
+              download
+            >
+              <ArrowDownToLine size={16} /> Unduh
+            </a>
+          ) : (
+            <button className="download-button" type="button" disabled title="Tautan unduhan belum dikonfigurasi">
+              <ArrowDownToLine size={16} /> Tautan belum tersedia
+            </button>
+          )}
         </article>)}
       </div> : <EmptyState title="Tidak ada hasil" copy="Coba kata kunci atau kategori yang berbeda." />}
       <p className="inline-notice"><Check size={15} /> Semua entri adalah data contoh. Verifikasi sumber dan lisensi sebelum distribusi.</p>
@@ -643,9 +660,39 @@ function FilesPage() {
 
 function FileRow({ entry, onOpen }: { entry: FileEntry; onOpen: () => void }) {
   const Icon = entry.kind === 'folder' ? Folder : entry.fileType === 'PDF' ? FileText : File
+
+  if (entry.kind === 'file' && entry.downloadUrl) {
+    return (
+      <a
+        href={entry.downloadUrl}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="file-row is-downloadable"
+        download
+      >
+        <span className="file-name-cell">
+          <span className="file-icon file"><Icon size={18} /></span>
+          <strong>{entry.name}</strong>
+          <ArrowDownToLine className="file-open-arrow" size={15} />
+        </span>
+        <span className="file-date">{entry.modifiedAt}</span>
+        <span className="file-size">{entry.size ?? '—'}</span>
+      </a>
+    )
+  }
+
   return (
-    <button type="button" className={`file-row${entry.kind === 'folder' ? ' is-folder' : ''}`} onClick={onOpen} disabled={entry.kind === 'file'}>
-      <span className="file-name-cell"><span className={`file-icon ${entry.kind}`}><Icon size={18} /></span><strong>{entry.name}</strong>{entry.kind === 'folder' && <ChevronRight className="file-open-arrow" size={15} />}</span>
+    <button
+      type="button"
+      className={`file-row${entry.kind === 'folder' ? ' is-folder' : ''}`}
+      onClick={onOpen}
+      disabled={entry.kind === 'file'}
+    >
+      <span className="file-name-cell">
+        <span className={`file-icon ${entry.kind}`}><Icon size={18} /></span>
+        <strong>{entry.name}</strong>
+        {entry.kind === 'folder' && <ChevronRight className="file-open-arrow" size={15} />}
+      </span>
       <span className="file-date">{entry.modifiedAt}</span>
       <span className="file-size">{entry.size ?? '—'}</span>
     </button>
